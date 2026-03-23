@@ -47,6 +47,13 @@ public class DialogueFlowController : MonoBehaviour
     public TMP_Text headPromptText;     // world-space TMP text near the girl's head
     public Transform headPromptAnchor;  // anchor transform on girl's head
 
+    [Header("Recorded Voice Playback")]
+    public AudioSource recordingPlaybackSource;   // dedicated source for replaying recorded clips
+    public bool logPlaybackSequence = true;
+
+    private Coroutine playbackRecordingsRoutine;
+    public bool IsPlayingRecordedSequence => playbackRecordingsRoutine != null;
+
     [Header("Girl Dialogue Bubble (world-space)")]
     public GirlDialogueBubble girlBubble; // drag bubble root (with GirlDialogueBubble) here
 
@@ -624,6 +631,35 @@ public class DialogueFlowController : MonoBehaviour
         MoveNextStep();
     }
 
+    private IEnumerator PlayRecordedVoicesSequence()
+{
+    var orderedKeys = new List<int>(recordings.Keys);
+    orderedKeys.Sort(); // play by stepId ascending
+
+    if (logPlaybackSequence)
+        Debug.Log("[DialogueFlow] Playing recordings in order: " + string.Join(", ", orderedKeys));
+
+    foreach (int stepId in orderedKeys)
+    {
+        if (!recordings.TryGetValue(stepId, out AudioClip clip) || clip == null)
+            continue;
+
+        recordingPlaybackSource.Stop();
+        recordingPlaybackSource.clip = clip;
+        recordingPlaybackSource.Play();
+
+        Debug.Log($"[DialogueFlow] Playing recorded clip from stepId={stepId}, length={clip.length:F2}s");
+
+        yield return new WaitForSeconds(clip.length);
+    }
+
+    recordingPlaybackSource.Stop();
+    recordingPlaybackSource.clip = null;
+    playbackRecordingsRoutine = null;
+
+    Debug.Log("[DialogueFlow] Finished playing all recorded voices.");
+}
+
     // ===== Public completion APIs =====
     public void CompleteCurrentStep()
     {
@@ -664,4 +700,27 @@ public class DialogueFlowController : MonoBehaviour
 
         CompleteCurrentStep();
     }
+
+    public void PlayAllRecordedVoicesInOrder()
+{
+    if (recordingPlaybackSource == null)
+    {
+        Debug.LogWarning("[DialogueFlow] recordingPlaybackSource is not assigned.");
+        return;
+    }
+
+    if (recordings == null || recordings.Count == 0)
+    {
+        Debug.LogWarning("[DialogueFlow] No recordings to play.");
+        return;
+    }
+
+    if (playbackRecordingsRoutine != null)
+    {
+        StopCoroutine(playbackRecordingsRoutine);
+        playbackRecordingsRoutine = null;
+    }
+
+    playbackRecordingsRoutine = StartCoroutine(PlayRecordedVoicesSequence());
+}
 }

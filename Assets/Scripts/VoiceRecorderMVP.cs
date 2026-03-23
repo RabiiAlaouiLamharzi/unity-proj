@@ -132,7 +132,15 @@ public class VoiceRecorderMVP : MonoBehaviour
         if (playbackSource.isPlaying)
             playbackSource.Stop();
 
+        Debug.Log("[VoiceRecorder] StartRecording called.");
+        Debug.Log("[VoiceRecorder] Using mic: " + micDevice);
+        Debug.Log("[VoiceRecorder] IsRecording before start: " + Microphone.IsRecording(micDevice));
+
+
         recordingClip = Microphone.Start(micDevice, false, maxRecordSeconds, frequency);
+
+        Debug.Log("[VoiceRecorder] recordingClip null after start? " + (recordingClip == null));
+
         isRecording = true;
 
         Debug.Log("[VoiceRecorder] Recording started...");
@@ -143,7 +151,14 @@ public class VoiceRecorderMVP : MonoBehaviour
     {
         if (!isRecording) return;
 
+        Debug.Log("[VoiceRecorder] StopRecording called.");
+        Debug.Log("[VoiceRecorder] Using mic: " + micDevice);
+        Debug.Log("[VoiceRecorder] Microphone.IsRecording before end: " + Microphone.IsRecording(micDevice));
+
         int endPos = Microphone.GetPosition(micDevice);
+        Debug.Log("[VoiceRecorder] endPos before End = " + endPos);
+        Debug.Log("[VoiceRecorder] recordingClip null before End? " + (recordingClip == null));
+
         Microphone.End(micDevice);
         isRecording = false;
 

@@ -92,7 +92,7 @@
                 {
                     "name": "",
                     "id": "5ffca4a6-802c-4eee-a179-4dd7b8745c76",
-                    "path": "<XRController>{RightHand}/primaryButton",
+                    "path": "<XRController>{RightHand}/{TriggerButton}",
                     "interactions": "",
                     "processors": "",
                     "groups": "",

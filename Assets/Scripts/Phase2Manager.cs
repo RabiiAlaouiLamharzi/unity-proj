@@ -98,6 +98,7 @@ public class Phase2Manager : MonoBehaviour
 
         MoveCameraExactlyToAnchor(childViewpointAnchor);
 
+        phase1.PlayAllRecordedVoicesInOrder();
 
         DisableLocomotion();
 
