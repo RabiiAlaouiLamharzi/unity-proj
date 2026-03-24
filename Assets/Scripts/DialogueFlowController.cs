@@ -49,6 +49,7 @@ public class DialogueFlowController : MonoBehaviour
 
     [Header("Recorded Voice Playback")]
     public AudioSource recordingPlaybackSource;   // dedicated source for replaying recorded clips
+    public float gapBetweenRecordings = 0.2f;
     public bool logPlaybackSequence = true;
 
     private Coroutine playbackRecordingsRoutine;
@@ -632,33 +633,33 @@ public class DialogueFlowController : MonoBehaviour
     }
 
     private IEnumerator PlayRecordedVoicesSequence()
-{
-    var orderedKeys = new List<int>(recordings.Keys);
-    orderedKeys.Sort(); // play by stepId ascending
-
-    if (logPlaybackSequence)
-        Debug.Log("[DialogueFlow] Playing recordings in order: " + string.Join(", ", orderedKeys));
-
-    foreach (int stepId in orderedKeys)
     {
-        if (!recordings.TryGetValue(stepId, out AudioClip clip) || clip == null)
-            continue;
+        var orderedKeys = new List<int>(recordings.Keys);
+        orderedKeys.Sort(); // play by stepId ascending
+
+        if (logPlaybackSequence)
+            Debug.Log("[DialogueFlow] Playing recordings in order: " + string.Join(", ", orderedKeys));
+
+        foreach (int stepId in orderedKeys)
+        {
+            if (!recordings.TryGetValue(stepId, out AudioClip clip) || clip == null)
+                continue;
+
+            recordingPlaybackSource.Stop();
+            recordingPlaybackSource.clip = clip;
+            recordingPlaybackSource.Play();
+
+            Debug.Log($"[DialogueFlow] Playing recorded clip from stepId={stepId}, length={clip.length:F2}s");
+
+            yield return new WaitForSeconds(clip.length);
+        }
 
         recordingPlaybackSource.Stop();
-        recordingPlaybackSource.clip = clip;
-        recordingPlaybackSource.Play();
+        recordingPlaybackSource.clip = null;
+        playbackRecordingsRoutine = null;
 
-        Debug.Log($"[DialogueFlow] Playing recorded clip from stepId={stepId}, length={clip.length:F2}s");
-
-        yield return new WaitForSeconds(clip.length);
+        Debug.Log("[DialogueFlow] Finished playing all recorded voices.");
     }
-
-    recordingPlaybackSource.Stop();
-    recordingPlaybackSource.clip = null;
-    playbackRecordingsRoutine = null;
-
-    Debug.Log("[DialogueFlow] Finished playing all recorded voices.");
-}
 
     // ===== Public completion APIs =====
     public void CompleteCurrentStep()
@@ -702,25 +703,45 @@ public class DialogueFlowController : MonoBehaviour
     }
 
     public void PlayAllRecordedVoicesInOrder()
-{
-    if (recordingPlaybackSource == null)
     {
-        Debug.LogWarning("[DialogueFlow] recordingPlaybackSource is not assigned.");
-        return;
+        StartCoroutine(PlayAllRecordedVoicesInOrderCoroutine());
     }
-
-    if (recordings == null || recordings.Count == 0)
+    public IEnumerator PlayAllRecordedVoicesInOrderCoroutine()
     {
-        Debug.LogWarning("[DialogueFlow] No recordings to play.");
-        return;
-    }
+        if (recordings == null || recordings.Count == 0)
+        {
+            Debug.Log("[DialogueFlow] No recordings to play.");
+            yield break;
+        }
 
-    if (playbackRecordingsRoutine != null)
-    {
-        StopCoroutine(playbackRecordingsRoutine);
-        playbackRecordingsRoutine = null;
-    }
+        if (recordingPlaybackSource == null)
+        {
+            Debug.LogWarning("[DialogueFlow] recordingPlaybackSource is not assigned.");
+            yield break;
+        }
 
-    playbackRecordingsRoutine = StartCoroutine(PlayRecordedVoicesSequence());
-}
+        var orderedKeys = new List<int>(recordings.Keys);
+        orderedKeys.Sort();
+
+        Debug.Log("[DialogueFlow] Playing recordings in order: " + string.Join(", ", orderedKeys));
+
+        foreach (int stepId in orderedKeys)
+        {
+            if (!recordings.TryGetValue(stepId, out var clip) || clip == null)
+            {
+                Debug.LogWarning($"[DialogueFlow] Missing clip for stepId={stepId}");
+                continue;
+            }
+
+            Debug.Log($"[DialogueFlow] Playing recorded clip from stepId={stepId}, length={clip.length:F2}s");
+
+            recordingPlaybackSource.Stop();
+            recordingPlaybackSource.clip = clip;
+            recordingPlaybackSource.Play();
+
+            yield return new WaitForSeconds(clip.length + gapBetweenRecordings);
+        }
+
+        Debug.Log("[DialogueFlow] Finished playing all recorded voices.");
+    }
 }

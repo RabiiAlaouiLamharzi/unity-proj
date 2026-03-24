@@ -679,6 +679,7 @@ MonoBehaviour:
   headPromptText: {fileID: 18023315}
   headPromptAnchor: {fileID: 18023313}
   recordingPlaybackSource: {fileID: 278397635}
+  gapBetweenRecordings: 0.2
   logPlaybackSequence: 1
   girlBubble: {fileID: 428736373}
   hudNormalColor: {r: 1, g: 1, b: 1, a: 1}
@@ -795,7 +796,7 @@ MonoBehaviour:
     completionMode: 2
     showHudOnLastHeadSegment: 1
     autoCompleteDelay: 0
-    requiresRecording: 0
+    requiresRecording: 1
     handler: {fileID: 0}
   voiceRecorder: {fileID: 278397627}
   useCompletionModeForRecording: 0
@@ -1151,7 +1152,7 @@ AudioSource:
     m_Curve:
     - serializedVersion: 3
       time: 0
-      value: 0.553
+      value: 0
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -3051,6 +3052,7 @@ MonoBehaviour:
   headPromptText: {fileID: 18023315}
   headPromptAnchor: {fileID: 18023313}
   recordingPlaybackSource: {fileID: 0}
+  gapBetweenRecordings: 0.2
   logPlaybackSequence: 1
   girlBubble: {fileID: 428736373}
   hudNormalColor: {r: 1, g: 1, b: 1, a: 1}

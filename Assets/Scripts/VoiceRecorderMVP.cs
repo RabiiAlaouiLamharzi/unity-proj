@@ -2,6 +2,7 @@ using System;
 using System.Text;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using System.Collections;
 
 [RequireComponent(typeof(AudioSource))]
 public class VoiceRecorderMVP : MonoBehaviour
@@ -9,10 +10,10 @@ public class VoiceRecorderMVP : MonoBehaviour
     public enum MicSelectMode { AutoFirst, ByIndex, ByExactName }
 
     [Header("Input")]
-    public InputActionReference recordToggleAction; // your bound controller button
+    public InputActionReference recordToggleAction;
 
     [Header("Enable / Disable by Flow")]
-    public bool recordingEnabled = true; // DialogueFlowController will control this
+    public bool recordingEnabled = true;
 
     [Header("Microphone Selection")]
     public MicSelectMode micSelectMode = MicSelectMode.AutoFirst;
@@ -25,22 +26,24 @@ public class VoiceRecorderMVP : MonoBehaviour
     public int frequency = 44100;
 
     [Header("Debug")]
-    public bool playBackImmediately = false; // set true only for debugging
+    public bool playBackImmediately = false;
 
-    // Events for flow
     public event Action OnRecordingStarted;
     public event Action<AudioClip> OnRecordingStoppedWithClip;
 
-    // runtime state
     private AudioSource playbackSource;
     private string micDevice;
     private bool isRecording = false;
     private AudioClip recordingClip;
+    private int actualRecordingFrequency;
 
     void Awake()
     {
         playbackSource = GetComponent<AudioSource>();
         playbackSource.playOnAwake = false;
+        playbackSource.pitch = 1f;
+        playbackSource.spatialBlend = 0f;
+        playbackSource.dopplerLevel = 0f;
     }
 
     void OnEnable()
@@ -65,7 +68,7 @@ public class VoiceRecorderMVP : MonoBehaviour
     {
         if (Microphone.devices.Length == 0)
         {
-            Debug.LogError("[VoiceRecorder] No microphone devices found. Check OS mic permissions/settings.");
+            Debug.LogError("[VoiceRecorder] No microphone devices found.");
             return;
         }
 
@@ -74,6 +77,10 @@ public class VoiceRecorderMVP : MonoBehaviour
 
         micDevice = SelectMicrophone();
         Debug.Log($"[VoiceRecorder] Selected microphone: {micDevice}");
+
+        int minFreq, maxFreq;
+        Microphone.GetDeviceCaps(micDevice, out minFreq, out maxFreq);
+        Debug.Log($"[VoiceRecorder] Device caps: min={minFreq}, max={maxFreq}");
     }
 
     private void LogMicrophoneDevices()
@@ -103,10 +110,22 @@ public class VoiceRecorderMVP : MonoBehaviour
                 }
                 return Microphone.devices[0];
 
-            case MicSelectMode.AutoFirst:
             default:
                 return Microphone.devices[0];
         }
+    }
+
+    private int GetSafeFrequency(string device, int requested)
+    {
+        int minFreq, maxFreq;
+        Microphone.GetDeviceCaps(device, out minFreq, out maxFreq);
+
+        if (minFreq == 0 && maxFreq == 0)
+            return requested;
+
+        if (requested < minFreq) return minFreq;
+        if (requested > maxFreq) return maxFreq;
+        return requested;
     }
 
     private void OnRecordTogglePerformed(InputAction.CallbackContext ctx)
@@ -114,7 +133,6 @@ public class VoiceRecorderMVP : MonoBehaviour
         if (!recordingEnabled) return;
         if (Microphone.devices.Length == 0) return;
 
-        // Helpful log for binding verification
         Debug.Log($"[VoiceRecorder] Toggle fired by: {ctx.control.path}");
 
         if (!isRecording) StartRecording();
@@ -132,18 +150,35 @@ public class VoiceRecorderMVP : MonoBehaviour
         if (playbackSource.isPlaying)
             playbackSource.Stop();
 
-        Debug.Log("[VoiceRecorder] StartRecording called.");
-        Debug.Log("[VoiceRecorder] Using mic: " + micDevice);
-        Debug.Log("[VoiceRecorder] IsRecording before start: " + Microphone.IsRecording(micDevice));
+        actualRecordingFrequency = GetSafeFrequency(micDevice, frequency);
+        Debug.Log($"[VoiceRecorder] StartRecording: device={micDevice}, requestedFreq={frequency}, actualFreq={actualRecordingFrequency}");
 
+        recordingClip = Microphone.Start(micDevice, false, maxRecordSeconds, actualRecordingFrequency);
 
-        recordingClip = Microphone.Start(micDevice, false, maxRecordSeconds, frequency);
+        if (recordingClip == null)
+        {
+            Debug.LogError("[VoiceRecorder] Microphone.Start returned null.");
+            return;
+        }
 
-        Debug.Log("[VoiceRecorder] recordingClip null after start? " + (recordingClip == null));
+        StartCoroutine(WaitForMicStart());
+    }
+
+    private IEnumerator WaitForMicStart()
+    {
+        float timeout = 1f;
+        float t = 0f;
+
+        while (Microphone.GetPosition(micDevice) <= 0 && t < timeout)
+        {
+            t += Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        int pos = Microphone.GetPosition(micDevice);
+        Debug.Log($"[VoiceRecorder] Mic warmup done. startPos={pos}");
 
         isRecording = true;
-
-        Debug.Log("[VoiceRecorder] Recording started...");
         OnRecordingStarted?.Invoke();
     }
 
@@ -151,29 +186,28 @@ public class VoiceRecorderMVP : MonoBehaviour
     {
         if (!isRecording) return;
 
-        Debug.Log("[VoiceRecorder] StopRecording called.");
-        Debug.Log("[VoiceRecorder] Using mic: " + micDevice);
-        Debug.Log("[VoiceRecorder] Microphone.IsRecording before end: " + Microphone.IsRecording(micDevice));
-
         int endPos = Microphone.GetPosition(micDevice);
-        Debug.Log("[VoiceRecorder] endPos before End = " + endPos);
-        Debug.Log("[VoiceRecorder] recordingClip null before End? " + (recordingClip == null));
+        Debug.Log($"[VoiceRecorder] StopRecording: endPos={endPos}, isMicRecording={Microphone.IsRecording(micDevice)}");
 
         Microphone.End(micDevice);
         isRecording = false;
 
         if (recordingClip == null || endPos <= 0)
         {
-            Debug.LogWarning("[VoiceRecorder] Recording invalid (clip null or endPos <= 0).");
+            Debug.LogWarning("[VoiceRecorder] Recording invalid.");
             OnRecordingStoppedWithClip?.Invoke(null);
             return;
         }
 
+        Debug.Log($"[VoiceRecorder] Raw clip: len={recordingClip.length:F2}s, samples={recordingClip.samples}, freq={recordingClip.frequency}, ch={recordingClip.channels}");
+
         AudioClip trimmed = TrimClip(recordingClip, endPos);
-        Debug.Log($"[VoiceRecorder] Recording stopped. Length: {trimmed.length:F2}s");
+
+        Debug.Log($"[VoiceRecorder] Trimmed clip: len={trimmed.length:F2}s, samples={trimmed.samples}, freq={trimmed.frequency}, ch={trimmed.channels}");
 
         if (playBackImmediately)
         {
+            playbackSource.Stop();
             playbackSource.clip = trimmed;
             playbackSource.Play();
         }

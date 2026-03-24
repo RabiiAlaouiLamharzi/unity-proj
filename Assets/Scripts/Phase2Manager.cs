@@ -33,7 +33,7 @@ public class Phase2Manager : MonoBehaviour
 
     [Header("Freeze movement after swap (recommended)")]
     [Tooltip("Disable these locomotion providers after teleport so the rig doesn't move.")]
-    public LocomotionProvider[] locomotionToDisable; 
+    public LocomotionProvider[] locomotionToDisable;
 
     [Header("Optional: also disable CharacterController movement collisions drift")]
     public CharacterController characterController;
@@ -92,20 +92,23 @@ public class Phase2Manager : MonoBehaviour
         if (childFollow != null) childFollow.enabled = false;
         if (childAnimator != null) childAnimator.enabled = false;
 
-  
+
         yield return new WaitForEndOfFrame();
 
 
         MoveCameraExactlyToAnchor(childViewpointAnchor);
 
-        phase1.PlayAllRecordedVoicesInOrder();
+        if (phase1 != null)
+        {
+            yield return StartCoroutine(phase1.PlayAllRecordedVoicesInOrderCoroutine());
+        }
 
         DisableLocomotion();
 
-                if (phase1 != null)
-{
-    phase1.enabled = false;
-}
+        if (phase1 != null)
+        {
+            phase1.enabled = false;
+        }
 
 
         if (dialogueSystemPhase1 != null) dialogueSystemPhase1.SetActive(false);
@@ -133,11 +136,11 @@ public class Phase2Manager : MonoBehaviour
             float targetYaw = anchor.eulerAngles.y;
             float deltaYaw = Mathf.DeltaAngle(currentYaw, targetYaw);
 
-     
+
             xrOrigin.transform.RotateAround(xrOrigin.Camera.transform.position, Vector3.up, deltaYaw);
         }
 
-     
+
         xrOrigin.MoveCameraToWorldLocation(anchor.position);
     }
 
@@ -150,7 +153,7 @@ public class Phase2Manager : MonoBehaviour
                 if (p != null) p.enabled = false;
         }
 
-   
+
         if (characterController != null)
             characterController.enabled = false;
     }
